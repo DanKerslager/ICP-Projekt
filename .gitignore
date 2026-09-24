@@ -1,0 +1,5 @@
+build/
+.vs/
+out/
+*.lnk
+CMakeUserPresets.json

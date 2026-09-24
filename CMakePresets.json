@@ -1,0 +1,50 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "vcpkg-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "toolset": { "value": "host=x64", "strategy": "external" },
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
+      "name": "vcpkg-debug",
+      "inherits": "vcpkg-base",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "vcpkg-release",
+      "inherits": "vcpkg-base",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "vs2026",
+      "displayName": "Visual Studio 2026 solution",
+      "inherits": "vcpkg-base",
+      "generator": "Visual Studio 18 2026",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "toolset": { "value": "host=x64", "strategy": "set" },
+      "binaryDir": "${sourceDir}/build/vs"
+    }
+    ],
+  "buildPresets": [
+    {
+      "name": "vcpkg-debug",
+      "configurePreset": "vcpkg-debug"
+    },
+    {
+      "name": "vcpkg-release",
+      "configurePreset": "vcpkg-release"
+    }
+  ]
+}
