@@ -129,17 +129,40 @@ void App::draw_cross_normalized(cv::Mat& img, cv::Point2f center_normalized, int
 }
 
 void App::video_loop(void) {
+    is_running = true;
+    detector_thread = std::thread(&App::detector_worker, this);
     cv::Mat frame;
+    cv::Point2f current_face(0.0f, 0.0f);
+
     do {
         capture.read(frame);
         if (frame.empty()) break;
-        cv::Point2f face = find_object_face(frame);
+
+        {
+            std::lock_guard<std::mutex> lock(frame_mutex);
+            frame.copyTo(latest_frame);
+            new_frame_available = true;
+        }
+        frame_condition.notify_one();
+
+        {
+            std::lock_guard<std::mutex> lock(face_mutex);
+            current_face = latest_face;
+        }
 
         cv::Mat scene_cross;
         frame.copyTo(scene_cross);
-        draw_cross_normalized(scene_cross, face, 25);
+        if (current_face.x >= 0.0f || current_face.y >= 0.0f) {
+            draw_cross_normalized(scene_cross, current_face, 25);
+        }
         cv::imshow("Camera Tracking", scene_cross);
     } while (cv::waitKey(1) != 27);
+
+    is_running = false;
+    frame_condition.notify_all();
+    if (detector_thread.joinable()) {
+        detector_thread.join();
+    }
 }
 
 cv::Point2f App::find_object_face(const cv::Mat& frame) {
@@ -164,4 +187,47 @@ cv::Point2f App::find_object_face(const cv::Mat& frame) {
         face.y = (y + height / 2.0f) / small_frame.rows;
     }
     return face;
+}
+
+void App::detector_worker() {
+    cv::Mat frame;
+    while (is_running) {
+        {
+            std::unique_lock<std::mutex> lock(frame_mutex);
+            frame_condition.wait(lock, [this] { return new_frame_available || !is_running; });
+
+            if (!is_running) break;
+
+            latest_frame.copyTo(frame);
+            new_frame_available = false;
+        }
+
+        detect_face_internal(frame);
+    }
+}
+
+void App::detect_face_internal(const cv::Mat& frame) {
+    if (frame.empty()) return;
+    
+    cv::Mat small_frame;
+    float scale = 200.f/static_cast<float>(frame.cols); // Změňte podle potřeby
+    cv::resize(frame, small_frame, cv::Size(), scale, scale);
+
+    face_detector->setInputSize(small_frame.size());
+    cv::Mat faces;
+    face_detector->detect(small_frame, faces);
+
+    if (faces.rows > 0) {
+        float x = faces.at<float>(0, 0);
+        float y = faces.at<float>(0, 1);
+        float width = faces.at<float>(0, 2);
+        float height = faces.at<float>(0, 3);
+
+        cv::Point2f face_center((x + width / 2.0f) / small_frame.cols, (y + height / 2.0f) / small_frame.rows);
+
+        {
+            std::lock_guard<std::mutex> lock(face_mutex);
+            latest_face = face_center;
+        }
+    }
 }

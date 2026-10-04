@@ -25,4 +25,18 @@ class App {
 
         cv::VideoCapture capture;
         //cv::CascadeClassifier face_cascade;
+
+        std::thread detector_thread;
+        std::atomic<bool> is_running{false};
+
+        std::mutex frame_mutex;
+        std::condition_variable frame_condition;
+        cv::Mat latest_frame;
+        bool new_frame_available{false};
+
+        std::mutex face_mutex;
+        cv::Point2f latest_face{0.0f, 0.0f};
+
+        void detector_worker();
+        void detect_face_internal(const cv::Mat& frame);
 };
