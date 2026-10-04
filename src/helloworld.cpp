@@ -18,7 +18,7 @@
 
 #include <nlohmann/json.hpp>
 
-int main()
+int test()
 {
     // console output
     {
