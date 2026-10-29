@@ -62,7 +62,8 @@ std::vector<uchar> App::lossy_bw_limit(cv::Mat& input_img, size_t size_limit, in
     std::cout << '[';
 
     //try step-by-step to decrease quality by 5%, until it fits into limit
-    for (auto i = 100; i > 0; i -= 5) {
+    //start one step above quality of previous frame (passed in), so quality can also grow back
+    for (auto i = std::min(quality + 5, 100); i > 0; i -= 5) {
         compression_params = compression_params_template; // reset parameters
         compression_params.push_back(i);                  // set desired quality
         quality = i;
@@ -91,6 +92,7 @@ int App::run(void)
     if (camera_fps <= 0.0) camera_fps = 30.0; // some backends report 0 = unknown
     auto t_frame = std::chrono::steady_clock::now();
     double fps = camera_fps; // measured, smoothed
+    int quality = 100; // JPEG quality of previous frame = starting guess for next one
     try {
         while (capture.isOpened())
         {
@@ -109,7 +111,6 @@ int App::run(void)
             //
             // Encode single image with limitation by bandwidth (byte budget for single frame)
             //
-            int quality = 0;
             auto t_enc = std::chrono::steady_clock::now();
             bytes = lossy_bw_limit(frame, size_compressed_limit, quality); // returns JPG compressed stream for single image
             double enc_ms = ms_since(t_enc); // all attempts together
