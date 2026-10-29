@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <chrono>
+#include <format>
 #include <iostream>
 #include <numeric>
 #include <vector>
@@ -37,7 +39,13 @@ bool App::init()
     return true;
 }
 
-std::vector<uchar> App::lossy_bw_limit(cv::Mat& input_img, size_t size_limit)
+// milliseconds elapsed since t0
+static double ms_since(std::chrono::steady_clock::time_point t0)
+{
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+}
+
+std::vector<uchar> App::lossy_bw_limit(cv::Mat& input_img, size_t size_limit, int& quality)
 {
     std::string suff(".jpg"); // target format
     if (!cv::haveImageWriter(suff))
@@ -57,10 +65,13 @@ std::vector<uchar> App::lossy_bw_limit(cv::Mat& input_img, size_t size_limit)
     for (auto i = 100; i > 0; i -= 5) {
         compression_params = compression_params_template; // reset parameters
         compression_params.push_back(i);                  // set desired quality
-        std::cout << i << ',';
+        quality = i;
+        std::cout << i << ':';
 
-        // try to encode
+        // try to encode, measure time of single compression
+        auto t0 = std::chrono::steady_clock::now();
         cv::imencode(suff, input_img, bytes, compression_params);
+        std::cout << ms_since(t0) << "ms,";
 
         // check the size limit
         if (bytes.size() <= size_limit)
@@ -75,7 +86,11 @@ int App::run(void)
 {
     cv::Mat frame;
     std::vector<uchar> bytes;
-    float target_coefficient = 0.5f; // used as size-ratio
+    float bandwidth_mbps = 10.0f; // simulated network speed limit
+    double camera_fps = capture.get(cv::CAP_PROP_FPS);
+    if (camera_fps <= 0.0) camera_fps = 30.0; // some backends report 0 = unknown
+    auto t_frame = std::chrono::steady_clock::now();
+    double fps = camera_fps; // measured, smoothed
     try {
         while (capture.isOpened())
         {
@@ -89,12 +104,15 @@ int App::run(void)
 
             // encode image with bandwidth limit
             auto size_uncompressed = frame.elemSize() * frame.total();
-            auto size_compressed_limit = size_uncompressed * target_coefficient;
+            auto size_compressed_limit = bandwidth_mbps * 1'000'000.0 / 8.0 / camera_fps; // Mbit/s -> bytes per frame
 
             //
-            // Encode single image with limitation by bandwidth (encoded to original datasize ratio in 0.0 - 1.0)
+            // Encode single image with limitation by bandwidth (byte budget for single frame)
             //
-            bytes = lossy_bw_limit(frame, size_compressed_limit); // returns JPG compressed stream for single image
+            int quality = 0;
+            auto t_enc = std::chrono::steady_clock::now();
+            bytes = lossy_bw_limit(frame, size_compressed_limit, quality); // returns JPG compressed stream for single image
+            double enc_ms = ms_since(t_enc); // all attempts together
             
             // display compression ratio
             auto size_compreessed = bytes.size();
@@ -103,7 +121,19 @@ int App::run(void)
             //
             // decode and display compressed and original data
             //  
+            auto t0 = std::chrono::steady_clock::now();
             cv::Mat decoded_frame = cv::imdecode(bytes, cv::IMREAD_ANYCOLOR);
+            double dec_ms = ms_since(t0);
+            std::cout << "Decode: " << dec_ms << " ms\n";
+
+            // overlay with stats (red = does not fit even with lowest quality)
+            fps = 0.9 * fps + 0.1 * 1000.0 / ms_since(t_frame);
+            t_frame = std::chrono::steady_clock::now();
+            auto color = bytes.size() > size_compressed_limit ? cv::Scalar(0, 0, 255) : cv::Scalar(0, 255, 0);
+            cv::putText(decoded_frame, std::format("limit {:.2f} Mbit/s  Q {}  rate {:.2f} Mbit/s", bandwidth_mbps, quality, bytes.size() * 8.0 * camera_fps / 1'000'000.0),
+                cv::Point(10, 25), cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
+            cv::putText(decoded_frame, std::format("enc {:.1f} ms  dec {:.1f} ms  {:.1f} FPS", enc_ms, dec_ms, fps),
+                cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
 
             cv::imshow("original", frame);
             cv::imshow("decoded", decoded_frame);
@@ -115,17 +145,17 @@ int App::run(void)
                 return EXIT_SUCCESS;
                 break;
             case 'q':
-                target_coefficient += 0.03;
+                bandwidth_mbps *= 1.25f;
                 break;
             case 'a':
-                target_coefficient -= 0.03;
+                bandwidth_mbps /= 1.25f;
                 break;
             default:
                 break;
             }
 
-            target_coefficient = std::clamp(target_coefficient, 0.01f, 1.0f);
-            std::cout << "Target coeff: " << target_coefficient*100.0f << " %\n";
+            bandwidth_mbps = std::clamp(bandwidth_mbps, 0.1f, 1000.0f);
+            std::cout << "Bandwidth limit: " << bandwidth_mbps << " Mbit/s\n";
         }
     }
     catch (std::exception const& e) {
