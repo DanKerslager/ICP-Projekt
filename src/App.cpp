@@ -1,6 +1,9 @@
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <format>
+#include <mutex>
 #include <iostream>
 #include <numeric>
 #include <vector>
@@ -87,21 +90,28 @@ int App::run(void)
 {
     cv::Mat frame;
     std::vector<uchar> bytes;
-    float bandwidth_mbps = 10.0f; // simulated network speed limit
+    std::atomic<float> bandwidth_mbps = 10.0f; // simulated network speed limit (set by main thread, read by worker)
     double camera_fps = capture.get(cv::CAP_PROP_FPS);
     if (camera_fps <= 0.0) camera_fps = 30.0; // some backends report 0 = unknown
     auto t_frame = std::chrono::steady_clock::now();
     double fps = camera_fps; // measured, smoothed
     int quality = 100; // JPEG quality of previous frame = starting guess for next one
-    try {
-        while (capture.isOpened())
-        {
-            capture >> frame;
 
-            if (frame.empty()) {
-                std::cerr << "device closed (or video at the end)" << '\n';
-                capture.release();
-                break;
+    // frames passed between main thread and encoder/decoder thread, guarded by mtx
+    std::mutex mtx;
+    std::condition_variable_any new_frame;
+    cv::Mat frame_in, frame_out; // newest camera frame for encoder, newest decoded result for display
+
+    // encoder/decoder thread, slow compression does not slow down main loop
+    std::jthread worker([&](std::stop_token st) {
+        while (!st.stop_requested())
+        {
+            cv::Mat frame; // own frame of this thread
+            {
+                std::unique_lock lock(mtx);
+                if (!new_frame.wait(lock, st, [&] { return !frame_in.empty(); }))
+                    break; // stop requested
+                std::swap(frame, frame_in); // take newest frame, frame_in stays empty
             }
 
             // encode image with bandwidth limit
@@ -131,13 +141,45 @@ int App::run(void)
             fps = 0.9 * fps + 0.1 * 1000.0 / ms_since(t_frame);
             t_frame = std::chrono::steady_clock::now();
             auto color = bytes.size() > size_compressed_limit ? cv::Scalar(0, 0, 255) : cv::Scalar(0, 255, 0);
-            cv::putText(decoded_frame, std::format("limit {:.2f} Mbit/s  Q {}  rate {:.2f} Mbit/s", bandwidth_mbps, quality, bytes.size() * 8.0 * camera_fps / 1'000'000.0),
+            cv::putText(decoded_frame, std::format("limit {:.2f} Mbit/s  Q {}  rate {:.2f} Mbit/s", bandwidth_mbps.load(), quality, bytes.size() * 8.0 * camera_fps / 1'000'000.0),
                 cv::Point(10, 25), cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
             cv::putText(decoded_frame, std::format("enc {:.1f} ms  dec {:.1f} ms  {:.1f} FPS", enc_ms, dec_ms, fps),
                 cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
 
+            std::scoped_lock lock(mtx);
+            frame_out = decoded_frame;
+        }
+    });
+
+    auto t_main = std::chrono::steady_clock::now();
+    double main_fps = camera_fps; // measured, smoothed
+    try {
+        while (capture.isOpened())
+        {
+            capture >> frame;
+
+            if (frame.empty()) {
+                std::cerr << "device closed (or video at the end)" << '\n';
+                capture.release();
+                break;
+            }
+
+            // hand newest frame to encoder (older unprocessed one is dropped), take newest decoded one
+            cv::Mat decoded_frame;
+            {
+                std::scoped_lock lock(mtx);
+                frame_in = frame.clone();
+                decoded_frame = frame_out;
+            }
+            new_frame.notify_one();
+
+            main_fps = 0.9 * main_fps + 0.1 * 1000.0 / ms_since(t_main);
+            t_main = std::chrono::steady_clock::now();
+            cv::putText(frame, std::format("{:.1f} FPS", main_fps), cv::Point(10, 25), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
+
             cv::imshow("original", frame);
-            cv::imshow("decoded", decoded_frame);
+            if (!decoded_frame.empty())
+                cv::imshow("decoded", decoded_frame);
 
             // key handling
             int c = cv::pollKey();
@@ -146,17 +188,17 @@ int App::run(void)
                 return EXIT_SUCCESS;
                 break;
             case 'q':
-                bandwidth_mbps *= 1.25f;
+                bandwidth_mbps = bandwidth_mbps * 1.25f;
                 break;
             case 'a':
-                bandwidth_mbps /= 1.25f;
+                bandwidth_mbps = bandwidth_mbps / 1.25f;
                 break;
             default:
                 break;
             }
 
-            bandwidth_mbps = std::clamp(bandwidth_mbps, 0.1f, 1000.0f);
-            std::cout << "Bandwidth limit: " << bandwidth_mbps << " Mbit/s\n";
+            bandwidth_mbps = std::clamp(bandwidth_mbps.load(), 0.1f, 1000.0f);
+            std::cout << "Bandwidth limit: " << bandwidth_mbps.load() << " Mbit/s\n";
         }
     }
     catch (std::exception const& e) {
