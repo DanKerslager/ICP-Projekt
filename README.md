@@ -37,23 +37,53 @@ pick a preset (`vs2026`, `vcpkg-debug`, `vcpkg-release`) in the toolbar and run.
 
 ## Expected output
 
-Terminal:
+The app opens a window with an OpenGL 4.6 CORE debug context. Terminal (vendor/renderer depend on your GPU):
 
 ```
-Hello!
-Hello World! vec3(0.000000, 0.000000, 0.000000)
-Current working directory: <repo root>
-"first_test"
-[x,y] = [1024,768]
-Image size: 468,323
-2.2.0
+GLFW 3.4.0 Win32 WGL Null EGL OSMesa VisualC DLL
+GLEW 2.2.0
+GL vendor:   NVIDIA Corporation
+GL renderer: NVIDIA GeForce RTX 3060 Laptop GPU/PCIe/SSE2
+GL version:  4.6.0 NVIDIA 576.02
+GLSL:        4.60 NVIDIA
+GL context:  4.6 CORE profile
+GL flags:    DEBUG
+GL_DEBUG enabled.
 ```
 
-Plus two windows: `test_window` (one camera frame, black without a camera) and a black
-GLFW window `test`. Press **ESC** in the GLFW window to quit; `Bye!` is printed.
+The window title shows `<appname> | FPS: <n> | VSync: ON/OFF`, updated every second.
+Mouse clicks and scroll-wheel events are printed to the terminal. `Bye!` is printed on exit.
+
+On notebooks with two GPUs, `src/gpu_select.cpp` asks the NVIDIA/AMD driver to use the dedicated GPU.
+
+### Controls
+
+| Key   | Action        |
+|-------|---------------|
+| ESC   | Quit          |
+| V     | Toggle VSync  |
+
+## Configuration
+
+`resources/app_settings.json` (read from the working directory at startup):
+
+```json
+{
+  "appname": "first_test",
+  "default_resolution": { "x": 1024, "y": 768 },
+  "vsync": true
+}
+```
+
+Every key is optional — missing keys or a missing file fall back to defaults (`ICP`, 800×600, VSync on).
+Malformed JSON or a non-positive window size aborts with an error.
 
 ## Troubleshooting
 
 - `Could not find a package configuration file provided by "OpenCV"` — OpenCV not at `C:/OpenCV/build`, see step 3.
 - `Could not find toolchain file: /scripts/buildsystems/vcpkg.cmake` — `VCPKG_ROOT` not set, or VS/terminal not restarted.
-- `Directory 'resources' not found` — program started from the wrong working directory; run it from the repo root.
+- `Config 'resources/app_settings.json' not found, using defaults.` — program started from the wrong working directory; run it from the repo root.
+- `Failed to create window with OpenGL 4.6 CORE context.` — GPU/driver does not support GL 4.6; update the driver
+  (on a notebook make sure the dedicated GPU is used).
+- `glewinfo` is not included in the vcpkg GLEW package — to compare GL info, download the GLEW Windows binaries from
+  https://glew.sourceforge.net and run `bin/Release/x64/glewinfo.exe`.
