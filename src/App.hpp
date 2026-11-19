@@ -8,6 +8,10 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <imgui.h>
+#include <imgui_impl_glfw.h>
+#include <imgui_impl_opengl3.h>
+
 #include "assets.hpp"
 
 class App {
@@ -17,6 +21,8 @@ public:
 
     void init();   // throws std::runtime_error on failure
     int run();
+    void destroy();
+    
 
 private:
     // config (overridden by resources/app_settings.json)
@@ -24,6 +30,8 @@ private:
     int window_width = 800;
     int window_height = 600;
     bool vsync_on = true;
+    bool full_screen{false};
+    bool show_imgui{true};
 
     // runtime state
     GLFWwindow* window = nullptr;
@@ -38,6 +46,9 @@ private:
     void init_gl_debug();
     void print_gl_info();
     void init_assets();
+    void init_imgui();
+    void render_imgui();
+    
 
     void set_vsync(bool on);
     void update_title();

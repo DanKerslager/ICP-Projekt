@@ -29,6 +29,9 @@ App::~App()
     glDeleteProgram(shader_prog_ID);
     glDeleteBuffers(1, &VBO_ID);
     glDeleteVertexArrays(1, &VAO_ID);
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     std::cout << "Bye!\n";
 }
 
@@ -42,6 +45,9 @@ void App::init()
     set_vsync(vsync_on);
 
     init_assets();
+    init_imgui();
+
+    glfwShowWindow(window);
 }
 
 void App::load_config(const std::filesystem::path& path)
@@ -81,6 +87,8 @@ void App::init_glfw()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_CONTEXT_DEBUG, GLFW_TRUE);
 
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // for macOS
+
     window = glfwCreateWindow(window_width, window_height, app_name.c_str(), nullptr, nullptr);
     if (!window)
         throw std::runtime_error(std::format("Failed to create window with OpenGL {}.{} CORE context.",
@@ -90,6 +98,7 @@ void App::init_glfw()
 
     glfwSetWindowUserPointer(window, this);
     glfwSetKeyCallback(window, key_callback);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); //disable emouse cursor
     glfwSetFramebufferSizeCallback(window, fbsize_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_position_callback);
@@ -247,12 +256,20 @@ int App::run()
 
 
     while (!glfwWindowShouldClose(window)) {
+        if (show_imgui) {
+            render_imgui();
+        }
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUniform4f(uniform_color_location, r, g, b, a);
         glBindVertexArray(VAO_ID);
         glDrawArrays(GL_TRIANGLES, 0, triangle_vertices.size());
         // ... draw calls ...
+
+        if (show_imgui) {
+            ImGui::Render();
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -308,8 +325,27 @@ void App::fbsize_callback(GLFWwindow* /*window*/, int width, int height)
 
 void App::mouse_button_callback(GLFWwindow* window, int button, int action, int /*mods*/)
 {
-    if (action != GLFW_PRESS)
-        return;
+    int mode = glfwGetInputMode(window, GLFW_CURSOR);
+    if (action == GLFW_PRESS){
+        switch (button) {
+            case GLFW_MOUSE_BUTTON_LEFT:
+                if (mode == GLFW_CURSOR_DISABLED) {
+                    App* app = static_cast<App*>(glfwGetWindowUserPointer(window));
+                    std::cout << "Mouse button " << button << " click at [" << app->cursor_x << ", " << app->cursor_y << "]\n";
+                }
+                
+                break;
+            case GLFW_MOUSE_BUTTON_RIGHT:
+                if (mode == GLFW_CURSOR_DISABLED)
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL); //enable mouse cursor
+                else
+                    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); //disable mouse cursor
+                break;
+            default:
+                break;
+        }
+    }
+        
 
     App* app = static_cast<App*>(glfwGetWindowUserPointer(window));
     std::cout << "Mouse button " << button << " click at [" << app->cursor_x << ", " << app->cursor_y << "]\n";
@@ -329,4 +365,31 @@ void App::scroll_callback(GLFWwindow* /*window*/, double /*xoffset*/, double yof
         std::cout << "Wheel up\n";
     else if (yoffset < 0.0)
         std::cout << "Wheel down\n";
+}
+
+void App::render_imgui(){
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    if (this->show_imgui) {
+        ImGui::SetNextWindowPos(ImVec2(10, 10));
+        ImGui::SetNextWindowSize(ImVec2(250, 100));
+        ImGui::Begin("Info");
+        ImGui::Text("V-Sync: %s", this->vsync_on ? "ON" : "OFF");
+        ImGui::Text("FPS: %.2f", this->fps);
+        ImGui::End();
+    }
+}
+
+void App::init_imgui()
+{
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;  // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;   // Enable Gamepad Controls
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init();
+    std::cout <<"ImGUI version: " << ImGui::GetVersion() << " initialised" << '\n';
 }
