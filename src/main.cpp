@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#include "App.h"
+#include "App.hpp"
 
 int main()
 {

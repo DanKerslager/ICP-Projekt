@@ -5,6 +5,10 @@
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#include "assets.hpp"
 
 class App {
 public:
@@ -44,4 +48,14 @@ private:
     static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
     static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
     static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
+
+    //loading assets
+    GLuint shader_prog_ID{0};
+    GLuint VAO_ID{0};
+    GLuint VBO_ID{0};
+    std::vector<Vertex> triangleVerices = {
+        {{0.0f,  0.5f,  0.0f}},
+    	{{0.5f, -0.5f,  0.0f}},
+    	{{-0.5f, -0.5f,  0.0f}}
+    };
 };

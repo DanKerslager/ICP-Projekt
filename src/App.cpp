@@ -5,8 +5,8 @@
 
 #include <nlohmann/json.hpp>
 
-#include "App.h"
-#include "gl_err_callback.h"
+#include "App.hpp"
+#include "gl_err_callback.hpp"
 
 namespace {
     constexpr int GL_REQUIRED_MAJOR = 4;
