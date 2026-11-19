@@ -313,6 +313,11 @@ void App::key_callback(GLFWwindow* window, int key, int /*scancode*/, int action
         std::cout << "VSync " << (app->vsync_on ? "ON" : "OFF") << '\n';
         break;
     }
+    case GLFW_KEY_F11: {
+        App* app = static_cast<App*>(glfwGetWindowUserPointer(window));
+        app->change_screen_mode();
+        break;
+    }
     default:
         break;
     }
@@ -392,4 +397,23 @@ void App::init_imgui()
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init();
     std::cout <<"ImGUI version: " << ImGui::GetVersion() << " initialised" << '\n';
+}
+void App::change_screen_mode()
+{
+    App::full_screen = !App::full_screen;
+
+	GLFWmonitor* monitor = glfwGetPrimaryMonitor(); // Get the primary monitor because current monitor is not easy to detect in GLFW
+	const GLFWvidmode* Gmode = glfwGetVideoMode(monitor);
+
+    if (App::full_screen) {
+		glfwGetWindowPos(window, &window_pos_x, &window_pos_y);
+		glfwGetWindowSize(window, &window_width, &window_height);
+		/*std::cout << "Windowed mode" << std::endl;
+		std::cout << "Window position: " << window_pos_x << ", " << window_pos_y << std::endl;
+		std::cout << "Window size: " << window_width << ", " << window_height << std::endl;*/
+		glfwSetWindowMonitor(window, monitor, 0, 0, Gmode->width, Gmode->height, Gmode->refreshRate);
+    }
+    else {
+        glfwSetWindowMonitor(window, nullptr, window_pos_x, window_pos_y, window_width, window_height, 0);
+    }
 }

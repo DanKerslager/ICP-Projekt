@@ -29,6 +29,8 @@ private:
     std::string app_name = "ICP";
     int window_width = 800;
     int window_height = 600;
+    int window_pos_x = 0;
+    int window_pos_y = 0;
     bool vsync_on = true;
     bool full_screen{false};
     bool show_imgui{true};
@@ -48,6 +50,7 @@ private:
     void init_assets();
     void init_imgui();
     void render_imgui();
+    void change_screen_mode();
     
 
     void set_vsync(bool on);
