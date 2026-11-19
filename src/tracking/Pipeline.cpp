@@ -82,6 +82,7 @@ void Pipeline::hand_loop(std::stop_token st)
         result.hands = hand_tracker.detect(result.frame->image, result.body);
         timer.stop();
         result.hand_ms = timer.getTimeMilli();
+        smoother.apply(result); // after hands: hand tracking needs the raw (unsmoothed) points
         results.put(std::move(result));
     }
 }

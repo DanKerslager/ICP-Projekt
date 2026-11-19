@@ -9,6 +9,7 @@
 #include "BodyTracker.h"
 #include "HandTracker.h"
 #include "Mailbox.h"
+#include "PoseSmoother.h"
 #include "Types.h"
 
 // Owns the tracking threads and the mailboxes between them.
@@ -27,12 +28,13 @@ public:
 private:
     void camera_loop(std::stop_token st, bool is_video_file);
     void body_loop(std::stop_token st);
-    void hand_loop(std::stop_token st);
+    void hand_loop(std::stop_token st); // hands + smoothing
 
     // created on main thread (a missing model file throws to the caller), then used only by its own thread
     cv::VideoCapture capture;
     BodyTracker body_tracker;
     HandTracker hand_tracker;
+    PoseSmoother smoother;
 
     std::atomic<bool> stopped{ false };
 
