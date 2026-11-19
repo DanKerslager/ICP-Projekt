@@ -17,7 +17,7 @@ bool App::init(void) {
 
 int App::run(void) {
     try {
-        /*cv::Mat frame = cv::imread("resources/lightbulb.jpg");
+        cv::Mat frame = cv::imread("resources/lightbulb.jpg");
         if (frame.empty()) 
             throw std::runtime_error("Nepodarilo se nacist resources/lightbulb.jpg!");
 
@@ -28,7 +28,7 @@ int App::run(void) {
         //cv::circle(frame, cv::Point(static_cast<int>(objectPosition.x * frame.cols), static_cast<int>(objectPosition.y * frame.rows)), 10, cv::Scalar(0, 255, 0), -1);
         this->draw_cross_normalized(frame, objectPosition, 25);
         cv::imshow("Zarovka", frame);
-        cv::waitKey(0);*/
+        cv::waitKey(1);
 
         capture = cv::VideoCapture(0);
         if (!capture.isOpened()) {
