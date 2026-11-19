@@ -1,0 +1,41 @@
+#pragma once
+
+#include <atomic>
+#include <string>
+#include <thread>
+
+#include <opencv2/videoio.hpp>
+
+#include "BodyTracker.h"
+#include "Mailbox.h"
+#include "Types.h"
+
+// Owns the tracking threads and the mailboxes between them.
+//   camera thread --FramePtr--> body thread --TrackingResult--> consumers
+// Each stage works on the newest data and skips what it was too slow for.
+// Threads start in the constructor and stop + join in the destructor.
+class Pipeline {
+public:
+    // source: empty = camera 0, otherwise video file (played at its own FPS)
+    explicit Pipeline(const std::string& source);
+
+    TrackingResult latest_result() { return results.latest(); }
+    bool finished() const { return stopped; } // video ended or camera closed
+
+private:
+    void camera_loop(std::stop_token st, bool is_video_file);
+    void body_loop(std::stop_token st);
+
+    // created on main thread (a missing model file throws to the caller), then used only by its own thread
+    cv::VideoCapture capture;
+    BodyTracker body_tracker;
+
+    std::atomic<bool> stopped{ false };
+
+    Mailbox<FramePtr> frames;              // camera -> body
+    Mailbox<TrackingResult> results;       // body -> consumers
+
+    // threads last: destroyed first, so they are joined before the members they use are gone
+    std::jthread camera_thread;
+    std::jthread body_thread;
+};

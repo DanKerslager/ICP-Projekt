@@ -3,3 +3,6 @@ build/
 out/
 *.lnk
 CMakeUserPresets.json
+
+# tracking debug images
+debug_*.jpg
