@@ -37,17 +37,31 @@ namespace {
         double rate = 0.0;
     };
 
+    const char* crop_name(CropFrom from)
+    {
+        switch (from) {
+        case CropFrom::ARM:      return "arm";
+        case CropFrom::TRACKING: return "track";
+        default:                 return "-";
+        }
+    }
+
     void draw_overlay(cv::Mat& view, const TrackingResult& result, double age_ms,
         double camera_fps, double pipeline_fps, double view_fps)
     {
         draw_body(view, result.body);
+        for (const HandPose& hand : result.hands)
+            draw_hand(view, hand);
 
         int y = 0;
         auto text = [&](const std::string& line) {
             cv::putText(view, line, cv::Point(10, y += 25), cv::FONT_HERSHEY_SIMPLEX, 0.6, CV_RGB(0, 255, 0), 2);
         };
         text(std::format("camera {:.1f}  pipeline {:.1f}  view {:.1f} FPS", camera_fps, pipeline_fps, view_fps));
-        text(std::format("body {:.1f} ms  age {:.1f} ms   [s] save  [Esc] quit", result.body_ms, age_ms));
+        text(std::format("body {:.1f} ms  hands {:.1f} ms  age {:.1f} ms", result.body_ms, result.hand_ms, age_ms));
+        text(std::format("hand L {:.2f} {}  R {:.2f} {}   [s] save  [Esc] quit",
+            result.hands[0].score, crop_name(result.hands[0].crop_from),
+            result.hands[1].score, crop_name(result.hands[1].crop_from)));
     }
 }
 

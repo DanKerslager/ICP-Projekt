@@ -19,6 +19,7 @@ Pipeline::Pipeline(const std::string& source)
 
     camera_thread = std::jthread([this, is_video_file](std::stop_token st) { camera_loop(st, is_video_file); });
     body_thread = std::jthread([this](std::stop_token st) { body_loop(st); });
+    hand_thread = std::jthread([this](std::stop_token st) { hand_loop(st); });
 }
 
 void Pipeline::camera_loop(std::stop_token st, bool is_video_file)
@@ -57,16 +58,30 @@ void Pipeline::body_loop(std::stop_token st)
 {
     FramePtr frame;
     cv::TickMeter timer;
-    std::uint64_t id = 0;
     while (frames.take(frame, st)) {
         TrackingResult result;
-        result.id = ++id;
         result.frame = frame;
         timer.reset();
         timer.start();
         result.body = body_tracker.detect(frame->image);
         timer.stop();
         result.body_ms = timer.getTimeMilli();
+        body_results.put(std::move(result));
+    }
+}
+
+void Pipeline::hand_loop(std::stop_token st)
+{
+    TrackingResult result;
+    cv::TickMeter timer;
+    std::uint64_t id = 0;
+    while (body_results.take(result, st)) {
+        result.id = ++id;
+        timer.reset();
+        timer.start();
+        result.hands = hand_tracker.detect(result.frame->image, result.body);
+        timer.stop();
+        result.hand_ms = timer.getTimeMilli();
         results.put(std::move(result));
     }
 }

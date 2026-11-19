@@ -51,10 +51,38 @@ struct BodyPose {
     bool valid = false; // person found
 };
 
+//
+// Hand: 21 MediaPipe landmarks (0 = wrist, 4 = thumb tip, 8 = index tip, ...)
+//
+constexpr int HAND_POINTS = 21;
+
+constexpr std::array<std::pair<int, int>, 21> HAND_BONES{ {
+    {0, 1}, {1, 2}, {2, 3}, {3, 4},                 // thumb
+    {0, 5}, {5, 6}, {6, 7}, {7, 8},                 // index
+    {5, 9}, {9, 10}, {10, 11}, {11, 12},            // middle
+    {9, 13}, {13, 14}, {14, 15}, {15, 16},          // ring
+    {13, 17}, {0, 17}, {17, 18}, {18, 19}, {19, 20} // little + palm
+} };
+
+// where the crop given to the hand model came from
+enum class CropFrom { NONE, ARM, TRACKING }; // none / elbow -> wrist / previous hand landmarks
+
+struct HandPose {
+    std::array<cv::Point2f, HAND_POINTS> points;
+    float score = 0.0f; // hand presence score
+    bool valid = false;
+
+    // crop the model looked at (also when the hand was rejected), for debug drawing
+    CropFrom crop_from = CropFrom::NONE;
+    std::array<cv::Point2f, 4> crop_corners;
+};
+
 // Output of the pipeline: poses together with the frame they were found in.
 struct TrackingResult {
     std::uint64_t id = 0;          // 1, 2, 3... in order of finishing (frames may be skipped, results not)
     FramePtr frame;
     BodyPose body;
+    std::array<HandPose, 2> hands; // [0] = person's left, [1] = person's right
     double body_ms = 0.0;          // body model time
+    double hand_ms = 0.0;          // hand model time (both hands)
 };
