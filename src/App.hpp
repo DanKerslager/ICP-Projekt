@@ -37,6 +37,7 @@ private:
     void init_glew();
     void init_gl_debug();
     void print_gl_info();
+    void init_assets();
 
     void set_vsync(bool on);
     void update_title();
@@ -53,7 +54,7 @@ private:
     GLuint shader_prog_ID{0};
     GLuint VAO_ID{0};
     GLuint VBO_ID{0};
-    std::vector<Vertex> triangleVerices = {
+    std::vector<Vertex> triangle_vertices = {
         {{0.0f,  0.5f,  0.0f}},
     	{{0.5f, -0.5f,  0.0f}},
     	{{-0.5f, -0.5f,  0.0f}}
