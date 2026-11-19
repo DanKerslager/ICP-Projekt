@@ -6,7 +6,7 @@
 
 #include "Pipeline.h"
 
-Pipeline::Pipeline(const std::string& source)
+Pipeline::Pipeline(const std::string& source, bool real_time)
 {
     // open here (main thread), so a failure is an exception for the caller, not a dead thread
     bool is_video_file = !source.empty();
@@ -17,12 +17,13 @@ Pipeline::Pipeline(const std::string& source)
     if (!capture.isOpened())
         throw std::runtime_error("Can not open video source: " + (is_video_file ? source : std::string("camera 0")));
 
-    camera_thread = std::jthread([this, is_video_file](std::stop_token st) { camera_loop(st, is_video_file); });
+    bool throttle = is_video_file && real_time; // a real camera already delivers at its own rate
+    camera_thread = std::jthread([this, throttle](std::stop_token st) { camera_loop(st, throttle); });
     body_thread = std::jthread([this](std::stop_token st) { body_loop(st); });
     hand_thread = std::jthread([this](std::stop_token st) { hand_loop(st); });
 }
 
-void Pipeline::camera_loop(std::stop_token st, bool is_video_file)
+void Pipeline::camera_loop(std::stop_token st, bool throttle)
 {
     using clock = std::chrono::steady_clock;
     double fps = capture.get(cv::CAP_PROP_FPS);
@@ -40,7 +41,7 @@ void Pipeline::camera_loop(std::stop_token st, bool is_video_file)
         }
 
         // camera blocks until next frame by itself; video file would be read as fast as possible
-        if (is_video_file) {
+        if (throttle) {
             next_frame += frame_time;
             std::this_thread::sleep_until(next_frame);
         }

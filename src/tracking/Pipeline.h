@@ -19,14 +19,15 @@
 // Threads start in the constructor and stop + join in the destructor.
 class Pipeline {
 public:
-    // source: empty = camera 0, otherwise video file (played at its own FPS)
-    explicit Pipeline(const std::string& source);
+    // source: empty = camera 0, otherwise video file
+    // real_time: video file plays at its own FPS; false = as fast as possible (benchmark)
+    explicit Pipeline(const std::string& source, bool real_time = true);
 
     TrackingResult latest_result() { return results.latest(); }
     bool finished() const { return stopped; } // video ended or camera closed
 
 private:
-    void camera_loop(std::stop_token st, bool is_video_file);
+    void camera_loop(std::stop_token st, bool throttle);
     void body_loop(std::stop_token st);
     void hand_loop(std::stop_token st); // hands + smoothing
 

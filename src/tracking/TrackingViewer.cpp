@@ -65,10 +65,10 @@ namespace {
     }
 }
 
-int run_tracking_viewer(const std::string& source)
+int run_tracking_viewer(const std::string& source, bool real_time)
 {
     try {
-        Pipeline pipeline(source);
+        Pipeline pipeline(source, real_time);
 
         // The view is not limited by the camera: it redraws the last result when nothing new came,
         // so view FPS = max draw rate while the tracking threads run.
