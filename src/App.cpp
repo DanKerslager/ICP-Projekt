@@ -22,16 +22,15 @@ namespace {
 
 App::~App()
 {
+    model.reset();
+    glDeleteProgram(shader_prog_ID);
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     if (window)
         glfwDestroyWindow(window);
     if (glfw_initialized)
         glfwTerminate();
-    glDeleteProgram(shader_prog_ID);
-    glDeleteBuffers(1, &VBO_ID);
-    glDeleteVertexArrays(1, &VAO_ID);
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
     std::cout << "Bye!\n";
 }
 
@@ -119,7 +118,9 @@ void App::init_glew()
 void App::init_assets(){
     const char* vertex_shader =
         "#version 460 core\n"
-        "in vec3 attribute_Position;"
+        "layout (location = 0) in vec3 attribute_Position;"
+        "layout (location = 1) in vec3 attribute_Normal;"
+        "layout (location = 2) in vec2 attribute_TexCoords;"
         "void main() {"
         "  gl_Position = vec4(attribute_Position, 1.0);"
         "}";
@@ -152,25 +153,7 @@ void App::init_assets(){
     glDeleteShader(vs);
     glDeleteShader(fs);
 
-    // 
-    // Create and load data into GPU using OpenGL DSA (Direct State Access)
-    //
-    
-    // Create VAO + data description (similar to container)
-    glCreateVertexArrays(1, &VAO_ID);
-
-    GLint position_attrib_location = glGetAttribLocation(shader_prog_ID, "attribute_Position");
-
-    glEnableVertexArrayAttrib(VAO_ID, position_attrib_location);
-    glVertexArrayAttribFormat(VAO_ID, position_attrib_location, decltype(Vertex::position)::length(), GL_FLOAT, GL_FALSE, offsetof(Vertex, position));
-    glVertexArrayAttribBinding(VAO_ID, position_attrib_location, 0); // (GLuint vaobj, GLuint attribindex, GLuint bindingindex)
-
-    // Create and fill data
-    glCreateBuffers(1, &VBO_ID);
-    glNamedBufferData(VBO_ID, triangle_vertices.size()*sizeof(Vertex), triangle_vertices.data(), GL_STATIC_DRAW);
-
-    // Connect together
-    glVertexArrayVertexBuffer(VAO_ID, 0, VBO_ID, 0, sizeof(Vertex)); // (GLuint vaobj, GLuint bindingindex, GLuint buffer, GLintptr offset, GLsizei stride)
+    model = std::make_unique<Model>("resources/models/triangle.obj");
 }
 
 void App::print_gl_info()
@@ -262,8 +245,7 @@ int App::run()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUniform4f(uniform_color_location, r, g, b, a);
-        glBindVertexArray(VAO_ID);
-        glDrawArrays(GL_TRIANGLES, 0, triangle_vertices.size());
+        model->draw();
         // ... draw calls ...
 
         if (show_imgui) {

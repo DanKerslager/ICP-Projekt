@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <memory>
 #include <string>
 
 #include <GL/glew.h>
@@ -13,6 +14,7 @@
 #include <imgui_impl_opengl3.h>
 
 #include "assets.hpp"
+#include "Model.hpp"
 
 class App {
 public:
@@ -66,11 +68,5 @@ private:
 
     //loading assets
     GLuint shader_prog_ID{0};
-    GLuint VAO_ID{0};
-    GLuint VBO_ID{0};
-    std::vector<Vertex> triangle_vertices = {
-        {{0.0f,  0.5f,  0.0f}},
-    	{{0.5f, -0.5f,  0.0f}},
-    	{{-0.5f, -0.5f,  0.0f}}
-    };
+    std::unique_ptr<Model> model;
 };
